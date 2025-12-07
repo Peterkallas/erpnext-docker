@@ -60,7 +60,7 @@ services:
       - backend
     command: nginx
     ports:
-      - "8080:8080"   # Coolify will reverse-proxy this
+      - "8090:8080"   # Coolify will reverse-proxy this
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - assets:/home/frappe/frappe-bench/sites/assets
