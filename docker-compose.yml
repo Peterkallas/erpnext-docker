@@ -1,0 +1,92 @@
+version: "3.9"
+
+services:
+  mariadb:
+    image: mariadb:10.6
+    container_name: erpnext-mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    restart: always
+
+  redis-cache:
+    image: redis:6.2
+    container_name: erpnext-redis-cache
+    restart: always
+
+  redis-queue:
+    image: redis:6.2
+    container_name: erpnext-redis-queue
+    restart: always
+
+  redis-socketio:
+    image: redis:6.2
+    container_name: erpnext-redis-socketio
+    restart: always
+
+  backend:
+    image: frappe/erpnext:v15.18.0
+    container_name: erpnext-backend
+    depends_on:
+      - mariadb
+      - redis-cache
+      - redis-queue
+      - redis-socketio
+    environment:
+      SITE_NAME: ${SITE_NAME}
+      DB_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      INSTALL_APPS: erpnext
+    command: >
+      bash -c "
+      if [ ! -d /home/frappe/frappe-bench/sites/$${SITE_NAME} ]; then
+        bench new-site $${SITE_NAME} --force --db-root-password=$${DB_ROOT_PASSWORD} --admin-password=$${ADMIN_PASSWORD};
+        bench --site $${SITE_NAME} install-app erpnext;
+      fi;
+      bench start"
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - assets:/home/frappe/frappe-bench/sites/assets
+    restart: always
+
+  frontend:
+    image: frappe/erpnext:v15.18.0
+    container_name: erpnext-frontend
+    depends_on:
+      - backend
+    command: nginx
+    ports:
+      - "8080:8080"   # Coolify will reverse-proxy this
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - assets:/home/frappe/frappe-bench/sites/assets
+    restart: always
+
+  scheduler:
+    image: frappe/erpnext:v15.18.0
+    container_name: erpnext-scheduler
+    command: bench schedule
+    depends_on:
+      - backend
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+    restart: always
+
+  worker:
+    image: frappe/erpnext:v15.18.0
+    container_name: erpnext-worker
+    command: bench worker
+    depends_on:
+      - backend
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+    restart: always
+
+volumes:
+  mariadb_data:
+  sites:
+  assets:
